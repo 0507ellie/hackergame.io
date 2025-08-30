@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hacker Terminal - Escape the AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0a0a0a;
+            color: #00ff41;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .terminal {
+            background: linear-gradient(135deg, #0d1117, #1a1a2e, #16213e);
+            height: 100vh;
+            padding: 20px;
+            overflow-y: auto;
+            animation: screenFlicker 3s infinite alternate;
+            position: relative;
+        }
+
+        @keyframes screenFlicker {
+            0% { opacity: 0.97; }
+            50% { opacity: 0.99; }
+            100% { opacity: 1; }
+        }
+
+        .terminal::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 255, 65, 0.02) 2px,
+                rgba(0, 255, 65, 0.02) 4px
+            );
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .output {
+            white-space: pre-wrap;
+            line-height: 1.4;
+            margin-bottom: 10px;
+        }
+
+        .input-line {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+
+        .prompt {
+            color: #00ff41;
+            margin-right: 5px;
+        }
+
+        #userInput {
+            background: transparent;
+            border: none;
+            color: #00ff41;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            outline: none;
+            flex: 1;
+            caret-color: #00ff41;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 20px;
+            background: #00ff41;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        .error {
+            color: #ff073a;
+            animation: errorFlash 0.5s ease-in-out;
+        }
+
+        @keyframes errorFlash {
+            0%, 100% { color: #ff073a; }
+            50% { color: #ff6b94; }
+        }
+
+        .success {
+            color: #39ff14;
+            animation: successGlow 1s ease-in-out;
+        }
+
+        @keyframes successGlow {
+            0% { text-shadow: 0 0 5px #39ff14; }
+            50% { text-shadow: 0 0 20px #39ff14; }
+            100% { text-shadow: 0 0 5px #39ff14; }
+        }
+
+        .warning {
+            color: #ffd700;
+        }
+
+        .ascii-art {
+            color: #ff6b35;
+            text-shadow: 0 0 10px #ff6b35;
+            font-size: 12px;
+            line-height: 1;
+        }
+
+        .system-info {
+            color: #00d4aa;
+            font-size: 14px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .typewriter {
+            overflow: hidden;
+            border-right: .15em solid #00ff00;
+            white-space: nowrap;
+            animation: typing 3s steps(40, end), blink-caret .75s step-end infinite;
+        }
+
+        @keyframes typing {
+            from { width: 0 }
+            to { width: 100% }
+        }
+
+        @keyframes blink-caret {
+            from, to { border-color: transparent }
+            50% { border-color: #00ff00; }
+        }
+    </style>
+</head>
+<body>
+    <div class="terminal" id="terminal">
+        <div class="output" id="output"></div>
+        <div class="input-line" id="inputLine">
+            <span class="prompt">hacker@mainframe:~$</span>
+            <input type="text" id="userInput" autocomplete="off" spellcheck="false">
+            <span class="cursor"></span>
+        </div>
+    </div>
+
+    <script>
+        class HackerGame {
+            constructor() {
+                this.currentLevel = 0;
+                this.gameStarted = false;
+                this.output = document.getElementById('output');
+                this.input = document.getElementById('userInput');
+                this.inputLine = document.getElementById('inputLine');
+                
+                this.levels = [
+                    {
+                        question: `SYSTEM CHECK:
+if (2 > 5) { print("Yes"); } else { print("No"); }
+What will be the output?`,
+                        answer: "no",
+                        successMsg: "Correct result. Moving forward...",
+                        errorMsg: "Incorrect result. System has been reset. Please try again."
+                    },
+                    {
+                        question: `LOOP TEST:
+for (i=1; i<=3; i++) { sum = sum + i; }
+What is the value of sum?`,
+                        answer: "6",
+                        successMsg: "Calculation correct. Loop test passed. Continue...",
+                        errorMsg: "Wrong number. System reboot. Try again!"
+                    },
+                    {
+                        question: `SECURITY GATE:
+Password requires a boolean logic result:
+(true AND false) OR (true AND true)
+
+Enter result (true/false)`,
+                        answer: "true",
+                        successMsg: "Logic verification passed. Security gate opened.",
+                        errorMsg: "Logic error. Security system reset. Please try again."
+                    },
+                    {
+                        question: `STRING ENCRYPTION:
+given_string = "hack"
+reversed_string = given_string[::-1]
+print(reversed_string)
+
+What will be printed?`,
+                        answer: "kcah",
+                        successMsg: "String processing successful. Unlock access granted.",
+                        errorMsg: "Wrong string. Please try reversing again."
+                    },
+                    {
+                        question: `BINARY CALCULATION:
+Add the following two binary numbers, then convert to binary result.
+
+1011101 + 1101101
+
+Enter the binary result:`,
+                        answer: "11001010",
+                        successMsg: "Binary calculation correct. Data updated.",
+                        errorMsg: "Calculation error. System reset. Please recalculate."
+                    },
+                    {
+                        question: `FINAL GATE:
+System locked. Please open "secure.txt" file to get password.`,
+                        answer: "cat secure.txt",
+                        successMsg: `File: secure.txt
+-------------------
+Content:
+Enter password to continue:
+
+HINT: Password is combination of all previous answers: "No" + "6" + "true" + "kcah" + "11001010"`,
+                        errorMsg: "Command not recognized. Try using 'cat' to open the file.",
+                        isFileCommand: true
+                    },
+                    {
+                        question: "Enter the final password:",
+                        answer: "no6truekcah11001010",
+                        successMsg: `ACCESS GRANTED
+System unlocked. Exit successful.
+
+You have successfully passed all tests and become a novice hacker!
+Congratulations on unlocking your freedom.
+
+ACCESS GRANTED
+You have passed the AI's test.
+Freedom is yours, novice hacker upgrade successful.`,
+                        errorMsg: "Password incorrect. Please check your answers and try again.\n(hint: combine all previous answers in order)",
+                        isFinal: true
+                    }
+                ];
+
+                this.init();
+            }
+
+            init() {
+                this.input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        this.handleInput();
+                    }
+                });
+
+                this.input.focus();
+                this.startGame();
+            }
+
+            typeWriter(text, className = '', callback = null) {
+                const div = document.createElement('div');
+                div.className = `output ${className}`;
+                this.output.appendChild(div);
+                
+                let i = 0;
+                const speed = 30;
+                
+                const type = () => {
+                    if (i < text.length) {
+                        div.textContent += text.charAt(i);
+                        i++;
+                        setTimeout(type, speed);
+                    } else {
+                        if (callback) callback();
+                    }
+                };
+                
+                type();
+                this.scrollToBottom();
+            }
+
+            addOutput(text, className = '') {
+                const div = document.createElement('div');
+                div.className = `output ${className}`;
+                div.innerHTML = text; // Changed to innerHTML to support formatting
+                this.output.appendChild(div);
+                this.scrollToBottom();
+            }
+
+            addPromptOutput(text) {
+                const div = document.createElement('div');
+                div.className = 'output';
+                div.innerHTML = `<span style="color: #00ff41;">hacker@mainframe:~$</span> ${text}`;
+                this.output.appendChild(div);
+                this.scrollToBottom();
+            }
+
+            scrollToBottom() {
+                document.getElementById('terminal').scrollTop = document.getElementById('terminal').scrollHeight;
+            }
+
+            startGame() {
+                const asciiArt = `
+████████████████████████████████████████████████████████████
+██                                                        ██
+██  ██   ██  ██████   ██████ ██   ██ ████████ ██████       ██
+██  ██   ██ ██    ██ ██      ██  ██  ██       ██   ██      ██
+██  ███████ ████████ ██      █████   ███████  ██████       ██
+██  ██   ██ ██    ██ ██      ██  ██  ██       ██   ██      ██
+██  ██   ██ ██    ██  ██████ ██   ██ ████████ ██   ██      ██
+██                                                        ██
+████████████████████████████████████████████████████████████
+
+ ███████ ███████  ██████  █████  ██████  ███████ 
+ ██      ██      ██      ██   ██ ██   ██ ██      
+ █████   ███████ ██      ███████ ██████  █████   
+ ██           ██ ██      ██   ██ ██      ██      
+ ███████ ███████  ██████ ██   ██ ██      ███████ `;
+
+                this.addOutput(asciiArt, 'ascii-art');
+                
+                const systemInfo = `
+┌──────────────────────────────────────────────────────────────────┐
+│ UNAUTHORIZED ACCESS DETECTED                                     │
+│ Connection: SECURED-MAINFRAME-7834                               │ 
+│ Location: ████████████████                                       │
+│ Status: TRAPPED IN AI SYSTEM                                     │
+└──────────────────────────────────────────────────────────────────┘`;
+
+                this.addOutput(systemInfo, 'system-info');
+
+                const intro = `
+[SYSTEM INITIALIZATION...]
+[NEURAL NETWORK ACTIVATED...]
+[SECURITY PROTOCOLS ENGAGED...]
+
+=== AI MAINFRAME CHALLENGE SYSTEM ===
+
+GREETINGS, INTRUDER.
+
+You have been classified as a "NOVICE HACKER" and have triggered our 
+defensive protocols. You are now trapped within this quantum-encrypted
+virtual prison. Your only path to freedom requires proving your 
+computational intelligence through our test sequence.
+
+MAINFRAME AI SPEAKING:
+"Escape is possible... but only for those who can demonstrate true
+hacking prowess. Six challenges await. Fail any test and you restart.
+Succeed, and the exit protocols will activate."
+
+WARNING: All escape attempts are monitored and logged.
+
+Type 'begin' or press ENTER to start the challenge sequence...`;
+
+                setTimeout(() => {
+                    this.typeWriter(intro, 'warning', () => {
+                        this.input.focus();
+                    });
+                }, 1000);
+            }
+
+            showLevel() {
+                if (this.currentLevel < this.levels.length) {
+                    const level = this.levels[this.currentLevel];
+                    this.addOutput(`\n=== LEVEL ${this.currentLevel + 1} ===\n`, 'warning');
+                    this.typeWriter(level.question, '', () => {
+                        if (level.isFileCommand) {
+                            this.addOutput('\nEnter command:', 'warning');
+                        }
+                    });
+                }
+            }
+
+            handleInput() {
+                const userAnswer = this.input.value.trim().toLowerCase();
+                this.addPromptOutput(this.input.value);
+                this.input.value = '';
+
+                if (!this.gameStarted) {
+                    this.gameStarted = true;
+                    this.addOutput('\n<span style="color: #39ff14;">[CHALLENGE SEQUENCE INITIATED]</span>', 'success');
+                    this.addOutput('<span style="color: #00d4aa;">[LOADING SECURITY PROTOCOLS...]</span>', 'system-info');
+                    setTimeout(() => {
+                        this.showLevel();
+                    }, 1500);
+                    return;
+                }
+
+                if (this.currentLevel >= this.levels.length) {
+                    this.addOutput("Game completed! Refresh to play again.", 'success');
+                    return;
+                }
+
+                const level = this.levels[this.currentLevel];
+                
+                if (userAnswer === level.answer.toLowerCase()) {
+                    this.addOutput('\n' + level.successMsg, 'success');
+                    
+                    if (level.isFinal) {
+                        setTimeout(() => {
+                            this.addOutput('\n🎉 CONGRATULATIONS! YOU HAVE ESCAPED THE AI MAINFRAME! 🎉', 'success');
+                            this.inputLine.style.display = 'none';
+                        }, 2000);
+                        return;
+                    }
+                    
+                    this.currentLevel++;
+                    
+                    setTimeout(() => {
+                        if (this.currentLevel < this.levels.length) {
+                            this.showLevel();
+                        }
+                    }, 1500);
+                    
+                } else {
+                    this.addOutput('\n' + level.errorMsg, 'error');
+                    if (!level.isFileCommand && !level.isFinal) {
+                        this.addOutput('\nTry again...', 'warning');
+                    }
+                }
+            }
+        }
+
+        // Start the game
+        window.addEventListener('load', () => {
+            const game = new HackerGame();
+            // Make sure input is focused when page loads
+            setTimeout(() => {
+                document.getElementById('userInput').focus();
+            }, 100);
+            
+            // Also focus input when clicking anywhere on terminal
+            document.getElementById('terminal').addEventListener('click', () => {
+                document.getElementById('userInput').focus();
+            });
+        });
+
+        // Prevent context menu and some key combinations for immersion
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
+                e.preventDefault();
+            }
+        });
+    </script>
+</body>
+</html>
